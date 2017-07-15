@@ -1,13 +1,11 @@
 TARGET = mediaplayer-binding
 
 HEADERS = mediaplayer-manager.h \
-      gdbus/lightmediascanner_interface.h \
-      gdbus/udisks_interface.h
+      gdbus/lightmediascanner_interface.h
 
 SOURCES = mediaplayer-api.c \
       mediaplayer-manager.c \
-      gdbus/lightmediascanner_interface.c \
-      gdbus/udisks_interface.c
+      gdbus/lightmediascanner_interface.c
 
 LIBS += -Wl,--version-script=$$PWD/export.map
 

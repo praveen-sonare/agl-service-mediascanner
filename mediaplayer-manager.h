@@ -22,7 +22,6 @@
 #include <glib-object.h>
 
 #include "lightmediascanner_interface.h"
-#include "udisks_interface.h"
 
     /* Debug Trace Level */
 #define DT_LEVEL_ERROR          (1 << 1)
@@ -65,11 +64,9 @@ void DebugTraceSendMsg(int level, gchar* message);
 
 //remote service
 #define LIGHTMEDIASCANNER_SERVICE   "org.lightmediascanner"
-#define UDISKS_SERVICE              "org.freedesktop.UDisks"
 
 //object path
 #define LIGHTMEDIASCANNER_PATH      "/org/lightmediascanner/Scanner1"
-#define UDISKS_PATH                 "/org/freedesktop/UDisks"
 
 //interface
 #define LIGHTMEDIASCANNER_INTERFACE "org.lightmediascanner.Scanner1"
@@ -85,7 +82,6 @@ typedef struct {
     GList *list;
     GMutex m;
     Scanner1 *lms_proxy;
-    OrgFreedesktopUDisks *udisks_proxy;
 } stMediaPlayerManage;
 
 typedef struct tagBinding_RegisterCallback

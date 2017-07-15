@@ -87,16 +87,10 @@ GList* media_lightmediascanner_scan(void)
 {
     sqlite3 *conn;
     sqlite3_stmt *res;
-    GList *list;
+    GList *list = NULL;
     const char *tail;
     const gchar *db_path;
     int ret = 0;
-
-    list = MediaPlayerManage.list;
-
-    // Returned cached result
-    if (list)
-        return list;
 
     db_path = scanner1_get_data_base_path(MediaPlayerManage.lms_proxy);
 
@@ -122,8 +116,6 @@ GList* media_lightmediascanner_scan(void)
 
         list = g_list_append(list, g_strdup_printf("file://%s", path));
     }
-
-    MediaPlayerManage.list = list;
 
     return list;
 }
@@ -170,20 +162,6 @@ on_interface_proxy_properties_changed (GDBusProxy *proxy,
     ListUnlock();
 }
 
-static void
-on_device_removed (GDBusProxy *proxy, gpointer user_data)
-{
-    ListLock();
-
-    g_list_free(MediaPlayerManage.list);
-    MediaPlayerManage.list = NULL;
-
-    if (g_RegisterCallback.binding_device_removed)
-        g_RegisterCallback.binding_device_removed((const char *) user_data);
-
-    ListUnlock();
-}
-
 static int MediaPlayerDBusInit(void)
 {
     GError *error = NULL;
@@ -197,23 +175,9 @@ static int MediaPlayerDBusInit(void)
         return -1;
     }
 
-    MediaPlayerManage.udisks_proxy = org_freedesktop_udisks_proxy_new_for_bus_sync(
-        G_BUS_TYPE_SYSTEM, G_DBUS_PROXY_FLAGS_NONE, UDISKS_SERVICE,
-        UDISKS_PATH, NULL, &error);
-
-    if (MediaPlayerManage.udisks_proxy == NULL) {
-        LOGE("Create UDisks Proxy failed\n");
-        return -1;
-    }
-
     g_signal_connect (MediaPlayerManage.lms_proxy,
                       "g-properties-changed",
                       G_CALLBACK (on_interface_proxy_properties_changed),
-                      NULL);
-
-    g_signal_connect (MediaPlayerManage.udisks_proxy,
-                      "device-removed",
-                      G_CALLBACK (on_device_removed),
                       NULL);
 
     return 0;
@@ -235,6 +199,28 @@ static void *media_event_loop_thread(void *unused)
     return NULL;
 }
 
+void
+unmount_cb (GFileMonitor      *mon,
+            GFile             *file,
+            GFile             *other_file,
+            GFileMonitorEvent  event,
+            gpointer           udata)
+{
+    gchar *path = g_file_get_path(file);
+    gchar *uri = g_strconcat("file://", path, NULL);
+    g_free(path);
+
+    ListLock();
+
+    if (g_RegisterCallback.binding_device_removed &&
+        event == G_FILE_MONITOR_EVENT_DELETED) {
+            g_RegisterCallback.binding_device_removed(uri);
+    }
+
+    ListUnlock();
+    g_free(uri);
+}
+
 /*
  * Create MediaPlayer Manager Thread
  * Note: mediaplayer-api should do MediaPlayerManagerInit() before any other 
@@ -243,8 +229,17 @@ static void *media_event_loop_thread(void *unused)
  */
 int MediaPlayerManagerInit() {
     pthread_t thread_id;
+    GFile *file;
+    GFileMonitor *mon;
 
     g_mutex_init(&(MediaPlayerManage.m));
+
+    file = g_file_new_for_path("/media");
+    g_assert(file != NULL);
+
+    mon = g_file_monitor (file, G_FILE_MONITOR_NONE, NULL, NULL);
+    g_assert(mon != NULL);
+    g_signal_connect (mon, "changed", G_CALLBACK(unmount_cb), NULL);
 
     pthread_create(&thread_id, NULL, media_event_loop_thread, NULL);
 

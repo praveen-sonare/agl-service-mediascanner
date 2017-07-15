@@ -86,6 +86,9 @@ static json_object *new_json_object_from_device(GList *list)
         json_object_array_add(jarray, jstring);
     }
 
+    if (jstring == NULL)
+        return NULL;
+
     json_object_object_add(jresp, "Media", jarray);
 
     // TODO: Add media path
@@ -109,6 +112,7 @@ static void media_results_get (struct afb_req request)
     }
 
     jresp = new_json_object_from_device(list);
+    g_list_free(list);
     ListUnlock();
 
     if (jresp == NULL) {
@@ -123,12 +127,11 @@ static void media_broadcast_device_added (GList *list)
 {
     json_object *jresp = new_json_object_from_device(list);
 
-    afb_event_push(media_added_event, jresp);
+    if (jresp != NULL) {
+        afb_event_push(media_added_event, jresp);
+    }
 }
 
-/*
- * TODO: support multiple devices
- */
 static void media_broadcast_device_removed (const char *obj_path)
 {
     json_object *jresp = json_object_new_object();
