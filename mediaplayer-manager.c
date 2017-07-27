@@ -159,6 +159,8 @@ on_interface_proxy_properties_changed (GDBusProxy *proxy,
     if (list != NULL && g_RegisterCallback.binding_device_added)
         g_RegisterCallback.binding_device_added(list);
 
+    g_list_free_full(list, g_free);
+
     ListUnlock();
 }
 
