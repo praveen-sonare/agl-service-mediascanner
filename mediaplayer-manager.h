@@ -98,5 +98,6 @@ void ListLock();
 void ListUnlock();
 
 GList* media_lightmediascanner_scan(void);
+GList* media_local_scan(GList *list);
 
 #endif
