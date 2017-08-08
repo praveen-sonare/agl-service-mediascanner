@@ -20,11 +20,11 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <json-c/json.h>
+
+#define AFB_BINDING_VERSION 2
 #include <afb/afb-binding.h>
 
 #include "mediaplayer-manager.h"
-
-const struct afb_binding_interface *afbitf;
 
 static struct afb_event media_added_event;
 static struct afb_event media_removed_event;
@@ -139,41 +139,35 @@ static void media_broadcast_device_removed (const char *obj_path)
     afb_event_push(media_removed_event, jresp);
 }
 
-static const struct afb_verb_desc_v1 binding_verbs[] = {
-    { "media_result",	AFB_SESSION_CHECK, media_results_get,	"Media scan result" },
-    { "subscribe",	AFB_SESSION_CHECK, subscribe,		"Subscribe for an event" },
-    { "unsubscribe",	AFB_SESSION_CHECK, unsubscribe,		"Unsubscribe for an event" },
+static const struct afb_verb_v2 binding_verbs[] = {
+    { "media_result", media_results_get, NULL, "Media scan result",        AFB_SESSION_CHECK },
+    { "subscribe",    subscribe,         NULL, "Subscribe for an event",   AFB_SESSION_CHECK },
+    { "unsubscribe",  unsubscribe,       NULL, "Unsubscribe for an event", AFB_SESSION_CHECK },
     { NULL }
 };
 
-static const struct afb_binding binding_description = {
-    .type = AFB_BINDING_VERSION_1,
-    .v1 = {
-        .prefix = "media-manager",
-        .info = "mediaplayer API",
-        .verbs = binding_verbs,
-    }
-};
-
-const struct afb_binding
-*afbBindingV1Register(const struct afb_binding_interface *itf)
+static int preinit()
 {
-    afbitf = itf;
-
     Binding_RegisterCallback_t API_Callback;
     API_Callback.binding_device_added = media_broadcast_device_added;
     API_Callback.binding_device_removed = media_broadcast_device_removed;
     BindingAPIRegister(&API_Callback);
 
-    MediaPlayerManagerInit();
-
-    return &binding_description;
+    return MediaPlayerManagerInit();
 }
 
-int afbBindingV1ServiceInit(struct afb_service service)
+static int init()
 {
-    media_added_event = afb_daemon_make_event(afbitf->daemon, "media_added");
-    media_removed_event = afb_daemon_make_event(afbitf->daemon, "media_removed");
+    media_added_event = afb_daemon_make_event("media_added");
+    media_removed_event = afb_daemon_make_event("media_removed");
 
     return 0;
 }
+
+const struct afb_binding_v2 afbBindingV2 = {
+    .api = "media-manager",
+    .specification = "mediaplayer API",
+    .preinit = preinit,
+    .init = init,
+    .verbs = binding_verbs,
+};
