@@ -21,7 +21,7 @@
 #include <gio/gio.h>
 #include <glib-object.h>
 
-#include "lightmediascanner_interface.h"
+#include "gdbus/lightmediascanner_interface.h"
 
     /* Debug Trace Level */
 #define DT_LEVEL_ERROR          (1 << 1)

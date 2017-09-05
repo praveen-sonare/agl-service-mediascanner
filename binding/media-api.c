@@ -24,7 +24,7 @@
 #define AFB_BINDING_VERSION 2
 #include <afb/afb-binding.h>
 
-#include "mediaplayer-manager.h"
+#include "media-manager.h"
 
 static struct afb_event media_added_event;
 static struct afb_event media_removed_event;
@@ -165,7 +165,7 @@ static int init()
 }
 
 const struct afb_binding_v2 afbBindingV2 = {
-    .api = "media-manager",
+    .api = "mediascanner",
     .specification = "mediaplayer API",
     .preinit = preinit,
     .init = init,

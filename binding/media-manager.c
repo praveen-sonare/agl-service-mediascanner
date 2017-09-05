@@ -30,7 +30,7 @@
 #include <glib-object.h>
 #include <sqlite3.h>
 
-#include "mediaplayer-manager.h"
+#include "media-manager.h"
 
 static Binding_RegisterCallback_t g_RegisterCallback = { 0 };
 static stMediaPlayerManage MediaPlayerManage = { 0 };
