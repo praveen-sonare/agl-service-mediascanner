@@ -140,10 +140,10 @@ static void media_broadcast_device_removed (const char *obj_path)
 }
 
 static const struct afb_verb_v2 binding_verbs[] = {
-    { "media_result", media_results_get, NULL, "Media scan result",        AFB_SESSION_CHECK },
-    { "subscribe",    subscribe,         NULL, "Subscribe for an event",   AFB_SESSION_CHECK },
-    { "unsubscribe",  unsubscribe,       NULL, "Unsubscribe for an event", AFB_SESSION_CHECK },
-    { NULL }
+    { .verb = "media_result", .callback = media_results_get, .info = "Media scan result" },
+    { .verb = "subscribe",    .callback = subscribe,         .info = "Subscribe for an event" },
+    { .verb = "unsubscribe",  .callback = unsubscribe,       .info = "Unsubscribe for an event" },
+    { }
 };
 
 static int preinit()
