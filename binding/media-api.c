@@ -82,8 +82,38 @@ static json_object *new_json_object_from_device(GList *list)
 
     for (l = list; l; l = l->next)
     {
-        jstring = json_object_new_string(l->data);
-        json_object_array_add(jarray, jstring);
+        struct Media_Item *item = l->data;
+        json_object *jdict = json_object_new_object();
+
+        jstring = json_object_new_string(item->path);
+        json_object_object_add(jdict, "path", jstring);
+
+        if (item->metadata.title) {
+            jstring = json_object_new_string(item->metadata.title);
+            json_object_object_add(jdict, "title", jstring);
+        }
+
+        if (item->metadata.artist) {
+            jstring = json_object_new_string(item->metadata.artist);
+            json_object_object_add(jdict, "artist", jstring);
+        }
+
+        if (item->metadata.album) {
+            jstring = json_object_new_string(item->metadata.album);
+            json_object_object_add(jdict, "album", jstring);
+        }
+
+        if (item->metadata.genre) {
+            jstring = json_object_new_string(item->metadata.genre);
+            json_object_object_add(jdict, "genre", jstring);
+        }
+
+        if (item->metadata.duration) {
+            json_object *jint = json_object_new_int(item->metadata.duration);
+            json_object_object_add(jdict, "duration", jint);
+        }
+
+        json_object_array_add(jarray, jdict);
     }
 
     if (jstring == NULL)

@@ -74,7 +74,15 @@ void DebugTraceSendMsg(int level, gchar* message);
 #define FREEDESKTOP_PROPERTIES      "org.freedesktop.DBus.Properties"
 
 //sqlite
-#define SQL_QUERY "SELECT files.path FROM files LEFT JOIN audios " \
+#define SQL_QUERY "SELECT files.path, audios.title, audio_artists.name, " \
+                  "audio_albums.name, audio_genres.name, audios.length " \
+                  "FROM files LEFT JOIN audios " \
+                  "LEFT JOIN audio_artists " \
+                  "ON audio_artists.id = audios.artist_id " \
+                  "LEFT JOIN audio_albums " \
+                  "ON audio_albums.id = audios.album_id " \
+                  "LEFT JOIN audio_genres " \
+                  "ON audio_genres.id = audios.genre_id " \
                   "WHERE audios.id = files.id ORDER BY " \
                   "audios.artist_id, audios.album_id, audios.trackno"
 
@@ -99,5 +107,16 @@ void ListUnlock();
 
 GList* media_lightmediascanner_scan(void);
 GList* media_local_scan(GList *list);
+
+struct Media_Item {
+    gchar *path;
+    struct {
+        gchar *title;
+        gchar *artist;
+        gchar *album;
+        gchar *genre;
+        gint  duration;
+    } metadata;
+};
 
 #endif

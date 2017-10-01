@@ -98,7 +98,9 @@ GList* media_local_scan(GList *list)
 
     while ((tmp = (gchar *) g_dir_read_name(dir)) != NULL)
     {
-        list = g_list_append(list, g_strdup_printf("file://%s/%s", path, tmp));
+        struct Media_Item *item = g_malloc0(sizeof(*item));
+        item->path = g_strdup_printf("file://%s", path);
+        list = g_list_append(list, item);
     }
 
     g_free(path);
@@ -132,18 +134,37 @@ GList* media_lightmediascanner_scan(void)
 
     while (sqlite3_step(res) == SQLITE_ROW) {
         struct stat buf;
+        struct Media_Item *item;
         const char *path = (const char *) sqlite3_column_text(res, 0);
 
         ret = stat(path, &buf);
         if (ret)
             continue;
 
-        list = g_list_append(list, g_strdup_printf("file://%s", path));
+        item = g_malloc0(sizeof(*item));
+        item->path = g_strdup_printf("file://%s", path);
+        item->metadata.title = g_strdup((gchar *) sqlite3_column_text(res, 1));
+        item->metadata.artist = g_strdup((gchar *) sqlite3_column_text(res, 2));
+        item->metadata.album = g_strdup((gchar *) sqlite3_column_text(res, 3));
+        item->metadata.genre = g_strdup((gchar *) sqlite3_column_text(res, 4));
+        item->metadata.duration = sqlite3_column_int(res, 5) * 1000;
+        list = g_list_append(list, item);
     }
 
     return list;
 }
 
+static void free_media_item(void *data)
+{
+    struct Media_Item *item = data;
+
+	g_free(item->metadata.title);
+	g_free(item->metadata.artist);
+	g_free(item->metadata.album);
+	g_free(item->metadata.genre);
+	g_free(item->path);
+	g_free(item);
+}
 
 static void
 on_interface_proxy_properties_changed (GDBusProxy *proxy,
@@ -183,7 +204,7 @@ on_interface_proxy_properties_changed (GDBusProxy *proxy,
     if (list != NULL && g_RegisterCallback.binding_device_added)
         g_RegisterCallback.binding_device_added(list);
 
-    g_list_free_full(list, g_free);
+    g_list_free_full(list, free_media_item);
 
     ListUnlock();
 }
