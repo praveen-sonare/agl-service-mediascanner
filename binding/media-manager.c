@@ -99,7 +99,7 @@ GList* media_local_scan(GList *list)
     while ((tmp = (gchar *) g_dir_read_name(dir)) != NULL)
     {
         struct Media_Item *item = g_malloc0(sizeof(*item));
-        item->path = g_strdup_printf("file://%s", path);
+        item->path = g_strdup_printf("file://%s/%s", path, tmp);
         list = g_list_append(list, item);
     }
 
