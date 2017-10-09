@@ -109,13 +109,14 @@ GList* media_local_scan(GList *list)
     return list;
 }
 
-GList* media_lightmediascanner_scan(void)
+GList* media_lightmediascanner_scan(gchar *uri)
 {
     sqlite3 *conn;
     sqlite3_stmt *res;
     GList *list = NULL;
     const char *tail;
     const gchar *db_path;
+    gchar *query;
     int ret = 0;
 
     db_path = scanner1_get_data_base_path(MediaPlayerManage.lms_proxy);
@@ -126,9 +127,16 @@ GList* media_lightmediascanner_scan(void)
         return NULL;
     }
 
-    ret = sqlite3_prepare_v2(conn, SQL_QUERY, strlen(SQL_QUERY) + 1, &res, &tail);
+    query = g_strdup_printf(SQL_QUERY, uri ? uri : "");
+    if (!query) {
+        LOGE("Cannot allocate memory for query\n");
+        return NULL;
+    }
+
+    ret = sqlite3_prepare_v2(conn, query, strlen(query), &res, &tail);
     if (ret) {
-        LOGE("Cannot execute query '%s'\n", SQL_QUERY);
+        LOGE("Cannot execute query '%s'\n", query);
+        g_free(query);
         return NULL;
     }
 
@@ -150,6 +158,8 @@ GList* media_lightmediascanner_scan(void)
         item->metadata.duration = sqlite3_column_int(res, 5) * 1000;
         list = g_list_append(list, item);
     }
+
+    g_free(query);
 
     return list;
 }
@@ -199,7 +209,10 @@ on_interface_proxy_properties_changed (GDBusProxy *proxy,
 
     ListLock();
 
-    list = media_lightmediascanner_scan();
+    list = media_lightmediascanner_scan(MediaPlayerManage.uri_filter);
+
+    g_free(MediaPlayerManage.uri_filter);
+    MediaPlayerManage.uri_filter = NULL;
 
     if (list != NULL && g_RegisterCallback.binding_device_added)
         g_RegisterCallback.binding_device_added(list);
@@ -255,17 +268,21 @@ unmount_cb (GFileMonitor      *mon,
 {
     gchar *path = g_file_get_path(file);
     gchar *uri = g_strconcat("file://", path, NULL);
-    g_free(path);
 
     ListLock();
 
     if (g_RegisterCallback.binding_device_removed &&
         event == G_FILE_MONITOR_EVENT_DELETED) {
-            g_RegisterCallback.binding_device_removed(uri);
+        g_RegisterCallback.binding_device_removed(uri);
+        g_free(path);
+    } else if (event == G_FILE_MONITOR_EVENT_CREATED) {
+        MediaPlayerManage.uri_filter = path;
+    } else {
+        g_free(path);
     }
 
-    ListUnlock();
     g_free(uri);
+    ListUnlock();
 }
 
 /*

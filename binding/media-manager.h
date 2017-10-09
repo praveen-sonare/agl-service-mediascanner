@@ -83,11 +83,14 @@ void DebugTraceSendMsg(int level, gchar* message);
                   "ON audio_albums.id = audios.album_id " \
                   "LEFT JOIN audio_genres " \
                   "ON audio_genres.id = audios.genre_id " \
-                  "WHERE audios.id = files.id ORDER BY " \
+                  "WHERE audios.id = files.id " \
+                  "AND files.path LIKE '%s/%%' " \
+                  "ORDER BY " \
                   "audios.artist_id, audios.album_id, audios.trackno"
 
 typedef struct {
     GList *list;
+    gchar *uri_filter;
     GMutex m;
     Scanner1 *lms_proxy;
 } stMediaPlayerManage;
@@ -105,7 +108,7 @@ int MediaPlayerManagerInit(void);
 void ListLock();
 void ListUnlock();
 
-GList* media_lightmediascanner_scan(void);
+GList* media_lightmediascanner_scan(gchar *uri);
 GList* media_local_scan(GList *list);
 
 struct Media_Item {

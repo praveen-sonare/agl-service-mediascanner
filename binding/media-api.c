@@ -130,7 +130,7 @@ static void media_results_get (struct afb_req request)
     json_object *jresp = NULL;
 
     ListLock();
-    list = media_lightmediascanner_scan();
+    list = media_lightmediascanner_scan(NULL);
     list = media_local_scan(list);
     if (list == NULL) {
         afb_req_fail(request, "failed", "media scan error");
