@@ -109,11 +109,10 @@ GList* media_local_scan(GList *list)
     return list;
 }
 
-GList* media_lightmediascanner_scan(gchar *uri)
+GList* media_lightmediascanner_scan(GList *list, gchar *uri)
 {
     sqlite3 *conn;
     sqlite3_stmt *res;
-    GList *list = NULL;
     const char *tail;
     const gchar *db_path;
     gchar *query;
@@ -185,7 +184,7 @@ on_interface_proxy_properties_changed (GDBusProxy *proxy,
     const gchar *key;
     GVariant *subValue;
     const gchar *pInterface;
-    GList *list;
+    GList *list = NULL;
 
     pInterface = g_dbus_proxy_get_interface_name (proxy);
 
@@ -209,7 +208,7 @@ on_interface_proxy_properties_changed (GDBusProxy *proxy,
 
     ListLock();
 
-    list = media_lightmediascanner_scan(MediaPlayerManage.uri_filter);
+    list = media_lightmediascanner_scan(list, MediaPlayerManage.uri_filter);
 
     g_free(MediaPlayerManage.uri_filter);
     MediaPlayerManage.uri_filter = NULL;
