@@ -26,6 +26,7 @@
 
 #include <pthread.h>
 #include <glib.h>
+#include <glib/gstdio.h>
 #include <gio/gio.h>
 #include <glib-object.h>
 #include <sqlite3.h>
@@ -99,7 +100,17 @@ GList* media_local_scan(GList *list)
     while ((tmp = (gchar *) g_dir_read_name(dir)) != NULL)
     {
         struct Media_Item *item = g_malloc0(sizeof(*item));
-        item->path = g_strdup_printf("file://%s/%s", path, tmp);
+        gchar *p = g_strconcat(path, "/", tmp, NULL);
+        GStatBuf buf;
+
+        if (g_stat(p, &buf) != 0 || !S_ISREG(buf.st_mode)) {
+            g_free(p);
+            continue;
+        }
+
+        item->path = g_strconcat("file://", p, NULL);
+        g_free(p);
+
         list = g_list_append(list, item);
     }
 
