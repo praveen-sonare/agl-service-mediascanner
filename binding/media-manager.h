@@ -109,7 +109,6 @@ void ListLock();
 void ListUnlock();
 
 GList* media_lightmediascanner_scan(GList *list, gchar *uri);
-GList* media_local_scan(GList *list);
 
 struct Media_Item {
     gchar *path;

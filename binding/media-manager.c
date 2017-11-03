@@ -84,42 +84,6 @@ void DebugTraceSendMsg(int level, gchar* message)
 
 }
 
-GList* media_local_scan(GList *list)
-{
-    gchar *path = g_strconcat(g_get_home_dir(), "/", "Music", NULL);
-    gchar *tmp = NULL;
-    GDir *dir;
-
-    dir = g_dir_open(path, 0, NULL);
-    if (dir == NULL)
-    {
-        LOGE("Cannot open media path %s\n", path);
-        return list;
-    }
-
-    while ((tmp = (gchar *) g_dir_read_name(dir)) != NULL)
-    {
-        struct Media_Item *item = g_malloc0(sizeof(*item));
-        gchar *p = g_strconcat(path, "/", tmp, NULL);
-        GStatBuf buf;
-
-        if (g_stat(p, &buf) != 0 || !S_ISREG(buf.st_mode)) {
-            g_free(p);
-            continue;
-        }
-
-        item->path = g_strconcat("file://", p, NULL);
-        g_free(p);
-
-        list = g_list_append(list, item);
-    }
-
-    g_free(path);
-    g_dir_close(dir);
-
-    return list;
-}
-
 GList* media_lightmediascanner_scan(GList *list, gchar *uri)
 {
     sqlite3 *conn;
