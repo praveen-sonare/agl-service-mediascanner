@@ -74,7 +74,8 @@ void DebugTraceSendMsg(int level, gchar* message);
 #define FREEDESKTOP_PROPERTIES      "org.freedesktop.DBus.Properties"
 
 //sqlite
-#define SQL_QUERY "SELECT files.path, audios.title, audio_artists.name, " \
+#define AUDIO_SQL_QUERY \
+                  "SELECT files.path, audios.title, audio_artists.name, " \
                   "audio_albums.name, audio_genres.name, audios.length " \
                   "FROM files LEFT JOIN audios " \
                   "LEFT JOIN audio_artists " \
@@ -87,6 +88,13 @@ void DebugTraceSendMsg(int level, gchar* message);
                   "AND files.path LIKE '%s/%%' " \
                   "ORDER BY " \
                   "audios.artist_id, audios.album_id, audios.trackno"
+
+#define VIDEO_SQL_QUERY \
+                  "SELECT files.path, videos.title, videos.artist, \"\", \"\", " \
+                  "videos.length FROM files LEFT JOIN videos " \
+                  "WHERE files.path LIKE '%s/%%' " \
+                  "ORDER BY " \
+                  "videos.title"
 
 typedef struct {
     GList *list;
@@ -108,7 +116,7 @@ int MediaPlayerManagerInit(void);
 void ListLock();
 void ListUnlock();
 
-GList* media_lightmediascanner_scan(GList *list, gchar *uri);
+GList* media_lightmediascanner_scan(GList *list, gchar *uri, int scan_type);
 
 struct Media_Item {
     gchar *path;
@@ -119,6 +127,11 @@ struct Media_Item {
         gchar *genre;
         gint  duration;
     } metadata;
+};
+
+enum {
+    LMS_AUDIO_SCAN,
+    LMS_VIDEO_SCAN,
 };
 
 #endif

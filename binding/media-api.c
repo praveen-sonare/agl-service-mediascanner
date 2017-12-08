@@ -126,11 +126,12 @@ static json_object *new_json_object_from_device(GList *list)
 
 static void media_results_get (struct afb_req request)
 {
-    GList *list;
+    GList *list = NULL;
     json_object *jresp = NULL;
 
     ListLock();
-    list = media_lightmediascanner_scan(list, NULL);
+    list = media_lightmediascanner_scan(list, NULL, LMS_AUDIO_SCAN);
+    list = media_lightmediascanner_scan(list, NULL, LMS_VIDEO_SCAN);
     if (list == NULL) {
         afb_req_fail(request, "failed", "media scan error");
         ListUnlock();

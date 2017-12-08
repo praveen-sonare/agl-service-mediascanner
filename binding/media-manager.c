@@ -84,7 +84,7 @@ void DebugTraceSendMsg(int level, gchar* message)
 
 }
 
-GList* media_lightmediascanner_scan(GList *list, gchar *uri)
+GList* media_lightmediascanner_scan(GList *list, gchar *uri, int scan_type)
 {
     sqlite3 *conn;
     sqlite3_stmt *res;
@@ -101,7 +101,15 @@ GList* media_lightmediascanner_scan(GList *list, gchar *uri)
         return NULL;
     }
 
-    query = g_strdup_printf(SQL_QUERY, uri ? uri : "");
+    switch (scan_type) {
+    case LMS_VIDEO_SCAN:
+        query = g_strdup_printf(VIDEO_SQL_QUERY, uri ? uri : "");
+        break;
+    case LMS_AUDIO_SCAN:
+    default:
+        query = g_strdup_printf(AUDIO_SQL_QUERY, uri ? uri : "");
+    }
+
     if (!query) {
         LOGE("Cannot allocate memory for query\n");
         return NULL;
@@ -183,7 +191,8 @@ on_interface_proxy_properties_changed (GDBusProxy *proxy,
 
     ListLock();
 
-    list = media_lightmediascanner_scan(list, MediaPlayerManage.uri_filter);
+    list = media_lightmediascanner_scan(list, MediaPlayerManage.uri_filter, LMS_AUDIO_SCAN);
+    list = media_lightmediascanner_scan(list, MediaPlayerManage.uri_filter, LMS_VIDEO_SCAN);
 
     g_free(MediaPlayerManage.uri_filter);
     MediaPlayerManage.uri_filter = NULL;
