@@ -91,7 +91,8 @@ void DebugTraceSendMsg(int level, gchar* message);
 
 #define VIDEO_SQL_QUERY \
                   "SELECT files.path, videos.title, videos.artist, \"\", \"\", " \
-                  "videos.length FROM files LEFT JOIN videos " \
+                  "videos.length FROM files " \
+                  "INNER JOIN videos ON videos.id = files.id " \
                   "WHERE files.path LIKE '%s/%%' " \
                   "ORDER BY " \
                   "videos.title"
