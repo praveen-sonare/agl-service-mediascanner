@@ -130,9 +130,9 @@ struct Media_Item {
     } metadata;
 };
 
-enum {
-    LMS_AUDIO_SCAN,
-    LMS_VIDEO_SCAN,
-};
+#define BIT(x)  (1<<x)
+
+#define LMS_AUDIO_SCAN  BIT(0)
+#define LMS_VIDEO_SCAN  BIT(1)
 
 #endif

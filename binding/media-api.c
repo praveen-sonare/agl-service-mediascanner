@@ -126,12 +126,28 @@ static json_object *new_json_object_from_device(GList *list)
 
 static void media_results_get (struct afb_req request)
 {
+    const char *value = afb_req_value(request, "value");
     GList *list = NULL;
     json_object *jresp = NULL;
+    int scan_type = 0;
 
     ListLock();
-    list = media_lightmediascanner_scan(list, NULL, LMS_AUDIO_SCAN);
-    list = media_lightmediascanner_scan(list, NULL, LMS_VIDEO_SCAN);
+
+    if (!value || !strcasecmp(value, "both")) {
+        scan_type = LMS_AUDIO_SCAN | LMS_VIDEO_SCAN;
+    } else {
+        if (!strcasecmp(value, "audio"))
+            scan_type = LMS_AUDIO_SCAN;
+        else if (!strcasecmp(value, "video"))
+            scan_type = LMS_VIDEO_SCAN;
+    }
+
+    if (scan_type & LMS_AUDIO_SCAN)
+        list = media_lightmediascanner_scan(list, NULL, LMS_AUDIO_SCAN);
+
+    if (scan_type & LMS_VIDEO_SCAN)
+        list = media_lightmediascanner_scan(list, NULL, LMS_VIDEO_SCAN);
+
     if (list == NULL) {
         afb_req_fail(request, "failed", "media scan error");
         ListUnlock();
