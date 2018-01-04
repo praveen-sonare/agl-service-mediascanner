@@ -33,6 +33,11 @@
 
 #include "media-manager.h"
 
+const char *lms_scan_types[] = {
+    "audio",
+    "video",
+};
+
 static Binding_RegisterCallback_t g_RegisterCallback = { 0 };
 static stMediaPlayerManage MediaPlayerManage = { 0 };
 
@@ -133,6 +138,7 @@ GList* media_lightmediascanner_scan(GList *list, gchar *uri, int scan_type)
 
         item = g_malloc0(sizeof(*item));
         item->path = g_strdup_printf("file://%s", path);
+        item->type = scan_type;
         item->metadata.title = g_strdup((gchar *) sqlite3_column_text(res, 1));
         item->metadata.artist = g_strdup((gchar *) sqlite3_column_text(res, 2));
         item->metadata.album = g_strdup((gchar *) sqlite3_column_text(res, 3));

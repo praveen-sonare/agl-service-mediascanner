@@ -88,6 +88,9 @@ static json_object *new_json_object_from_device(GList *list)
         jstring = json_object_new_string(item->path);
         json_object_object_add(jdict, "path", jstring);
 
+        jstring = json_object_new_string(lms_scan_types[item->type]);
+        json_object_object_add(jdict, "type", jstring);
+
         if (item->metadata.title) {
             jstring = json_object_new_string(item->metadata.title);
             json_object_object_add(jdict, "title", jstring);

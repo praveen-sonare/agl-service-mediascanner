@@ -121,6 +121,7 @@ GList* media_lightmediascanner_scan(GList *list, gchar *uri, int scan_type);
 
 struct Media_Item {
     gchar *path;
+    gint type;
     struct {
         gchar *title;
         gchar *artist;
@@ -133,6 +134,9 @@ struct Media_Item {
 enum {
     LMS_AUDIO_SCAN,
     LMS_VIDEO_SCAN,
+    LMS_SCAN_COUNT,
 };
+
+extern const char *lms_scan_types[LMS_SCAN_COUNT];
 
 #endif
