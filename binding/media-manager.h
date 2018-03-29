@@ -77,15 +77,15 @@ void DebugTraceSendMsg(int level, gchar* message);
 #define AUDIO_SQL_QUERY \
                   "SELECT files.path, audios.title, audio_artists.name, " \
                   "audio_albums.name, audio_genres.name, audios.length " \
-                  "FROM files LEFT JOIN audios " \
+                  "FROM files INNER JOIN audios " \
+                  "ON files.id = audios.id " \
                   "LEFT JOIN audio_artists " \
                   "ON audio_artists.id = audios.artist_id " \
                   "LEFT JOIN audio_albums " \
                   "ON audio_albums.id = audios.album_id " \
                   "LEFT JOIN audio_genres " \
                   "ON audio_genres.id = audios.genre_id " \
-                  "WHERE audios.id = files.id " \
-                  "AND files.path LIKE '%s/%%' " \
+                  "WHERE files.path LIKE '%s/%%' " \
                   "ORDER BY " \
                   "audios.artist_id, audios.album_id, audios.trackno"
 
