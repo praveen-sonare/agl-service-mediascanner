@@ -224,26 +224,23 @@ static int MediaPlayerDBusInit(void)
         return -1;
     }
 
-    g_signal_connect (MediaPlayerManage.lms_proxy,
-                      "g-properties-changed",
-                      G_CALLBACK (on_interface_proxy_properties_changed),
-                      NULL);
-
     return 0;
 }
 
 static void *media_event_loop_thread(void *unused)
 {
     GMainLoop *loop = g_main_loop_new(NULL, FALSE);
-    int ret;
 
-    ret = MediaPlayerDBusInit();
-    if (ret == 0) {
-        LOGD("g_main_loop_run\n");
-        g_main_loop_run(loop);
-    }
+    if (loop == NULL)
+        return NULL;
 
-    g_main_loop_unref(loop);
+    g_signal_connect (MediaPlayerManage.lms_proxy,
+                      "g-properties-changed",
+                      G_CALLBACK (on_interface_proxy_properties_changed),
+                      NULL);
+
+    LOGD("g_main_loop_run\n");
+    g_main_loop_run(loop);
 
     return NULL;
 }
@@ -284,6 +281,7 @@ int MediaPlayerManagerInit() {
     pthread_t thread_id;
     GFile *file;
     GFileMonitor *mon;
+    int ret;
 
     g_mutex_init(&(MediaPlayerManage.m));
 
@@ -294,9 +292,11 @@ int MediaPlayerManagerInit() {
     g_assert(mon != NULL);
     g_signal_connect (mon, "changed", G_CALLBACK(unmount_cb), NULL);
 
-    pthread_create(&thread_id, NULL, media_event_loop_thread, NULL);
+    ret = MediaPlayerDBusInit();
+    if (ret == 0)
+        pthread_create(&thread_id, NULL, media_event_loop_thread, NULL);
 
-    return 0;
+    return ret;
 }
 
 /*
