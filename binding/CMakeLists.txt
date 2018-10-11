@@ -36,8 +36,3 @@ PROJECT_TARGET_ADD(mediascanner-binding)
 
 	# Library dependencies (include updates automatically)
 	TARGET_LINK_LIBRARIES(${TARGET_NAME} ${link_libraries})
-
-	# installation directory
-	INSTALL(TARGETS ${TARGET_NAME}
-		LIBRARY DESTINATION ${BINDINGS_INSTALL_DIR})
-
