@@ -21,13 +21,13 @@
 #include <unistd.h>
 #include <json-c/json.h>
 
-#define AFB_BINDING_VERSION 2
+#define AFB_BINDING_VERSION 3
 #include <afb/afb-binding.h>
 
 #include "media-manager.h"
 
-static struct afb_event media_added_event;
-static struct afb_event media_removed_event;
+static afb_event_t media_added_event;
+static afb_event_t media_removed_event;
 
 /*
  * @brief Subscribe for an event
@@ -35,7 +35,7 @@ static struct afb_event media_removed_event;
  * @param struct afb_req : an afb request structure
  *
  */
-static void subscribe(struct afb_req request)
+static void subscribe(afb_req_t request)
 {
 	const char *value = afb_req_value(request, "value");
 	if(value) {
@@ -57,7 +57,7 @@ static void subscribe(struct afb_req request)
  * @param struct afb_req : an afb request structure
  *
  */
-static void unsubscribe(struct afb_req request)
+static void unsubscribe(afb_req_t request)
 {
 	const char *value = afb_req_value(request, "value");
 	if(value) {
@@ -127,7 +127,7 @@ static json_object *new_json_object_from_device(GList *list)
     return jresp;
 }
 
-static void media_results_get (struct afb_req request)
+static void media_results_get (afb_req_t request)
 {
     GList *list = NULL;
     json_object *jresp = NULL;
@@ -172,35 +172,29 @@ static void media_broadcast_device_removed (const char *obj_path)
     afb_event_push(media_removed_event, jresp);
 }
 
-static const struct afb_verb_v2 binding_verbs[] = {
+static const afb_verb_t binding_verbs[] = {
     { .verb = "media_result", .callback = media_results_get, .info = "Media scan result" },
     { .verb = "subscribe",    .callback = subscribe,         .info = "Subscribe for an event" },
     { .verb = "unsubscribe",  .callback = unsubscribe,       .info = "Unsubscribe for an event" },
     { }
 };
 
-static int preinit()
+static int init(afb_api_t api)
 {
     Binding_RegisterCallback_t API_Callback;
     API_Callback.binding_device_added = media_broadcast_device_added;
     API_Callback.binding_device_removed = media_broadcast_device_removed;
     BindingAPIRegister(&API_Callback);
 
-    return MediaPlayerManagerInit();
-}
-
-static int init()
-{
     media_added_event = afb_daemon_make_event("media_added");
     media_removed_event = afb_daemon_make_event("media_removed");
 
-    return 0;
+    return MediaPlayerManagerInit();
 }
 
-const struct afb_binding_v2 afbBindingV2 = {
+const afb_binding_t afbBindingV3 = {
     .api = "mediascanner",
     .specification = "mediaplayer API",
-    .preinit = preinit,
     .init = init,
     .verbs = binding_verbs,
 };
