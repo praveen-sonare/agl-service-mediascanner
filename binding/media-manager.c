@@ -120,7 +120,7 @@ GList* media_lightmediascanner_scan(GList *list, gchar *uri, int scan_type)
         return NULL;
     }
 
-    ret = sqlite3_prepare_v2(conn, query, strlen(query), &res, &tail);
+    ret = sqlite3_prepare_v2(conn, query, (int) strlen(query), &res, &tail);
     if (ret) {
         LOGE("Cannot execute query '%s'\n", query);
         g_free(query);
