@@ -131,13 +131,17 @@ GList* media_lightmediascanner_scan(GList *list, gchar *uri, int scan_type)
         struct stat buf;
         struct Media_Item *item;
         const char *path = (const char *) sqlite3_column_text(res, 0);
+        gchar *tmp;
 
         ret = stat(path, &buf);
         if (ret)
             continue;
 
         item = g_malloc0(sizeof(*item));
-        item->path = g_strdup_printf("file://%s", path);
+        tmp = g_uri_escape_string(path, "/", TRUE);
+        item->path = g_strdup_printf("file://%s", tmp);
+        g_free(tmp);
+
         item->type = scan_type;
         item->metadata.title = g_strdup((gchar *) sqlite3_column_text(res, 1));
         item->metadata.artist = g_strdup((gchar *) sqlite3_column_text(res, 2));

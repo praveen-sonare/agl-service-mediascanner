@@ -21,7 +21,7 @@ with the following fields.
 | Name        | Description                                 |
 |:------------|---------------------------------------------|
 | duration    | length of track in milliseconds             |
-| path        | path to media on filesystem                 |
+| path        | uri escaped path to media on filesystem     |
 | title       | title for media entey                       |
 | album       | album name for media entry                  |
 | artist      | artist name for media entry                 |
