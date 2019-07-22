@@ -220,7 +220,7 @@ static int MediaPlayerDBusInit(void)
     GError *error = NULL;
 
     MediaPlayerManage.lms_proxy = scanner1_proxy_new_for_bus_sync(
-        G_BUS_TYPE_SESSION, G_DBUS_PROXY_FLAGS_NONE, LIGHTMEDIASCANNER_SERVICE,
+        G_BUS_TYPE_SYSTEM, G_DBUS_PROXY_FLAGS_NONE, LIGHTMEDIASCANNER_SERVICE,
         LIGHTMEDIASCANNER_PATH, NULL, &error);
 
     if (MediaPlayerManage.lms_proxy == NULL) {
