@@ -29,6 +29,72 @@
 static afb_event_t media_added_event;
 static afb_event_t media_removed_event;
 
+static gint get_scan_type(afb_req_t request, json_object *jtype) {
+    gint ret = 0;
+    const *stype = NULL;
+    if(!json_object_is_type(jtype,json_type_string)) {
+        afb_req_fail(request,"failed", "invalid scan-type type");
+        return ret;
+    }
+    stype = json_object_get_string(jtype);
+
+    if(!strcasecmp(stype,MEDIA_ALL)) {
+        ret = LMS_ALL_SCAN;
+    } else if(!strcasecmp(stype,MEDIA_AUDIO)) {
+        ret = LMS_AUDIO_SCAN;
+    } else if(!strcasecmp(stype,MEDIA_VIDEO)) {
+        ret = LMS_VIDEO_SCAN;
+    } else if(!strcasecmp(stype,MEDIA_IMAGE)) {
+        ret = LMS_IMAGE_SCAN;
+    } else {
+        afb_req_fail(request,"failed","invalid scan-type value");
+    }
+    return ret;
+}
+
+static gint get_scan_types(afb_req_t request) {
+
+    json_object *jtypes = NULL;
+    gint ret = 0;
+
+    if(!afb_req_is_valid(request)) {
+        afb_req_fail(request, "failed", "invalid request");
+        return -1;
+    }
+
+    if(!json_object_object_get_ex(afb_req_json(request),"types",&jtypes)) {
+        /*
+         * Considering 'audio' & 'video' scan types as default
+         * if the user doesn't provide 'types' property,
+         * for sake of compability with previeus versions
+         */
+        ret = (LMS_AUDIO_SCAN | LMS_VIDEO_SCAN);
+        return ret;
+    }
+
+    if(json_object_is_type(jtypes,json_type_array)) {
+        const gint len = json_object_array_length(jtypes);
+        size_t i;
+
+        if(len > LMS_SCAN_COUNT) {
+            afb_req_fail(request, "failed", "too many scan-types");
+            return -1;
+        }
+
+        for(i=0; i<len; ++i){
+            gint t = get_scan_type(request, json_object_array_get_idx(jtypes,i));
+            if(t != 0) { ret |= t; } else { return -1;}
+        }
+        return ret;
+    } else if(json_object_is_type(jtypes,json_type_string)) {
+        gint t = get_scan_type(request,jtypes);
+        if(t != 0) {return t;} else {return -1;}
+    } else {
+        afb_req_fail(request, "failed", "invalid scan-types format");
+        return -1;
+    }
+}
+
 /*
  * @brief Subscribe for an event
  *
@@ -38,6 +104,8 @@ static afb_event_t media_removed_event;
 static void subscribe(afb_req_t request)
 {
 	const char *value = afb_req_value(request, "value");
+    gint scantype = 0;
+
 	if(value) {
 		if(!strcasecmp(value, "media_added")) {
 			afb_req_subscribe(request, media_added_event);
@@ -48,7 +116,13 @@ static void subscribe(afb_req_t request)
 			return;
 		}
 	}
-	afb_req_success(request, NULL, NULL);
+
+    //Get scan types & append them to scan config
+    scantype = get_scan_types(request);
+    if(scantype < 0) return;
+
+    ScanTypeAppend(scantype);
+    afb_req_success(request, NULL, NULL);
 }
 
 /*
@@ -59,7 +133,26 @@ static void subscribe(afb_req_t request)
  */
 static void unsubscribe(afb_req_t request)
 {
-	const char *value = afb_req_value(request, "value");
+    json_object *jrequest = afb_req_json(request);
+    char *value = NULL;
+
+    if( json_object_object_get_ex(jrequest,"value",NULL) &&
+        json_object_object_get_ex(jrequest,"types",NULL) ) {
+        //If 'types' is provided, We just remove the specified types.
+        gint scantype = get_scan_types(request);
+        if(scantype < 0) return;
+
+        /*
+         * If any scan type remained, we escape unsubscribe the event
+         * otherwise continue to unsubscribe the event
+         */
+        if(ScanTypeRemove(scantype)) {
+            afb_req_success(request, NULL, NULL);
+            return;
+        }
+    }
+
+	value = afb_req_value(request, "value");
 	if(value) {
 		if(!strcasecmp(value, "media_added")) {
 			afb_req_unsubscribe(request, media_added_event);
@@ -88,7 +181,7 @@ static json_object *new_json_object_from_device(GList *list)
         jstring = json_object_new_string(item->path);
         json_object_object_add(jdict, "path", jstring);
 
-        jstring = json_object_new_string(lms_scan_types[item->type]);
+        jstring = json_object_new_string(item->type);
         json_object_object_add(jdict, "type", jstring);
 
         if (item->metadata.title) {
@@ -131,10 +224,20 @@ static void media_results_get (afb_req_t request)
 {
     GList *list = NULL;
     json_object *jresp = NULL;
+    gint scan_type = 0;
+
+    scan_type = get_scan_types(request);
+    if(scan_type < 0) return;
 
     ListLock();
-    list = media_lightmediascanner_scan(list, NULL, LMS_AUDIO_SCAN);
-    list = media_lightmediascanner_scan(list, NULL, LMS_VIDEO_SCAN);
+
+    if(scan_type & LMS_AUDIO_SCAN)
+        list = media_lightmediascanner_scan(list, NULL, LMS_AUDIO_SCAN);
+    if(scan_type & LMS_VIDEO_SCAN)
+        list = media_lightmediascanner_scan(list, NULL, LMS_VIDEO_SCAN);
+    if(scan_type & LMS_IMAGE_SCAN)
+        list = media_lightmediascanner_scan(list, NULL, LMS_IMAGE_SCAN);
+
     if (list == NULL) {
         afb_req_fail(request, "failed", "media scan error");
         ListUnlock();

@@ -97,9 +97,18 @@ void DebugTraceSendMsg(int level, gchar* message);
                   "ORDER BY " \
                   "videos.title"
 
+#define IMAGE_SQL_QUERY \
+                "SELECT files.path, images.title, \"\", \"\", " \
+                " \"\" FROM files " \
+                "INNER JOIN images ON images.id = files.id " \
+                "WHERE files.path LIKE '%s/%%' " \
+                "ORDER BY " \
+                "images.title"
+
 typedef struct {
     GList *list;
     gchar *uri_filter;
+    gint  type_filter;
     GMutex m;
     Scanner1 *lms_proxy;
 } stMediaPlayerManage;
@@ -114,6 +123,9 @@ typedef struct tagBinding_RegisterCallback
 void BindingAPIRegister(const Binding_RegisterCallback_t* pstRegisterCallback);
 int MediaPlayerManagerInit(void);
 
+gint ScanTypeAppend(gint);
+gint ScanTypeRemove(gint);
+
 void ListLock();
 void ListUnlock();
 
@@ -121,7 +133,7 @@ GList* media_lightmediascanner_scan(GList *list, gchar *uri, int scan_type);
 
 struct Media_Item {
     gchar *path;
-    gint type;
+    gchar *type;
     struct {
         gchar *title;
         gchar *artist;
@@ -132,10 +144,22 @@ struct Media_Item {
 };
 
 enum {
-    LMS_AUDIO_SCAN,
-    LMS_VIDEO_SCAN,
-    LMS_SCAN_COUNT,
+    LMS_AUDIO_ID,
+    LMS_VIDEO_ID,
+    LMS_IMAGE_ID,
+    LMS_SCAN_COUNT
 };
+
+#define LMS_AUDIO_SCAN (1 << LMS_AUDIO_ID)
+#define LMS_VIDEO_SCAN (1 << LMS_VIDEO_ID)
+#define LMS_IMAGE_SCAN (1 << LMS_IMAGE_ID)
+
+#define LMS_ALL_SCAN   ( LMS_AUDIO_SCAN | LMS_VIDEO_SCAN | LMS_IMAGE_SCAN )
+
+#define MEDIA_AUDIO "audio"
+#define MEDIA_VIDEO "video"
+#define MEDIA_IMAGE "image"
+#define MEDIA_ALL   "all"
 
 extern const char *lms_scan_types[LMS_SCAN_COUNT];
 

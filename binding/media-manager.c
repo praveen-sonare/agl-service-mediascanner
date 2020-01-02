@@ -33,9 +33,10 @@
 
 #include "media-manager.h"
 
-const char *lms_scan_types[] = {
-    "audio",
-    "video",
+const gchar *lms_scan_types[] = {
+    MEDIA_AUDIO,
+    MEDIA_VIDEO,
+    MEDIA_IMAGE
 };
 
 static Binding_RegisterCallback_t g_RegisterCallback = { 0 };
@@ -96,6 +97,7 @@ GList* media_lightmediascanner_scan(GList *list, gchar *uri, int scan_type)
     const char *tail;
     const gchar *db_path;
     gchar *query;
+    gchar *media_type;
     int ret = 0;
 
     db_path = scanner1_get_data_base_path(MediaPlayerManage.lms_proxy);
@@ -107,12 +109,18 @@ GList* media_lightmediascanner_scan(GList *list, gchar *uri, int scan_type)
     }
 
     switch (scan_type) {
-    case LMS_VIDEO_SCAN:
-        query = g_strdup_printf(VIDEO_SQL_QUERY, uri ? uri : "");
-        break;
-    case LMS_AUDIO_SCAN:
-    default:
-        query = g_strdup_printf(AUDIO_SQL_QUERY, uri ? uri : "");
+        case LMS_VIDEO_SCAN:
+            query = g_strdup_printf(VIDEO_SQL_QUERY, uri ? uri : "");
+            media_type = lms_scan_types[LMS_VIDEO_ID];
+            break;
+        case LMS_IMAGE_SCAN:
+            query = g_strdup_printf(IMAGE_SQL_QUERY, uri ? uri : "");
+            media_type = lms_scan_types[LMS_IMAGE_ID];
+            break;
+        case LMS_AUDIO_SCAN:
+        default:
+            query = g_strdup_printf(AUDIO_SQL_QUERY, uri ? uri : "");
+            media_type = lms_scan_types[LMS_AUDIO_ID];
     }
 
     if (!query) {
@@ -142,7 +150,7 @@ GList* media_lightmediascanner_scan(GList *list, gchar *uri, int scan_type)
         item->path = g_strdup_printf("file://%s", tmp);
         g_free(tmp);
 
-        item->type = scan_type;
+        item->type = media_type;
         item->metadata.title = g_strdup((gchar *) sqlite3_column_text(res, 1));
         item->metadata.artist = g_strdup((gchar *) sqlite3_column_text(res, 2));
         item->metadata.album = g_strdup((gchar *) sqlite3_column_text(res, 3));
@@ -150,7 +158,6 @@ GList* media_lightmediascanner_scan(GList *list, gchar *uri, int scan_type)
         item->metadata.duration = sqlite3_column_int(res, 5) * 1000;
         list = g_list_append(list, item);
     }
-
     g_free(query);
 
     return list;
@@ -173,6 +180,9 @@ on_interface_proxy_properties_changed (GDBusProxy *proxy,
                                     GVariant *changed_properties,
                                     const gchar* const  *invalidated_properties)
 {
+    if(!(MediaPlayerManage.type_filter & LMS_ALL_SCAN))
+        return;
+
     GVariantIter iter;
     const gchar *key;
     GVariant *subValue;
@@ -200,9 +210,12 @@ on_interface_proxy_properties_changed (GDBusProxy *proxy,
     }
 
     ListLock();
-
-    list = media_lightmediascanner_scan(list, MediaPlayerManage.uri_filter, LMS_AUDIO_SCAN);
-    list = media_lightmediascanner_scan(list, MediaPlayerManage.uri_filter, LMS_VIDEO_SCAN);
+    if(MediaPlayerManage.type_filter & LMS_AUDIO_SCAN)
+        list = media_lightmediascanner_scan(list, MediaPlayerManage.uri_filter, LMS_AUDIO_SCAN);
+    if(MediaPlayerManage.type_filter & LMS_VIDEO_SCAN)
+        list = media_lightmediascanner_scan(list, MediaPlayerManage.uri_filter, LMS_VIDEO_SCAN);
+    if(MediaPlayerManage.type_filter & LMS_IMAGE_SCAN)
+        list = media_lightmediascanner_scan(list, MediaPlayerManage.uri_filter, LMS_IMAGE_SCAN);
 
     g_free(MediaPlayerManage.uri_filter);
     MediaPlayerManage.uri_filter = NULL;
@@ -277,7 +290,7 @@ unmount_cb (GFileMonitor      *mon,
 
 /*
  * Create MediaPlayer Manager Thread
- * Note: mediaplayer-api should do MediaPlayerManagerInit() before any other 
+ * Note: mediaplayer-api should do MediaPlayerManagerInit() before any other
  *       API calls
  * Returns: 0 - success or error conditions
  */
@@ -322,4 +335,15 @@ void BindingAPIRegister(const Binding_RegisterCallback_t* pstRegisterCallback)
                 pstRegisterCallback->binding_device_removed;
         }
     }
+}
+
+gint ScanTypeAppend(gint type)
+{
+    return MediaPlayerManage.type_filter |= (type & LMS_ALL_SCAN);
+}
+
+gint ScanTypeRemove(gint type)
+{
+    MediaPlayerManage.type_filter = (MediaPlayerManage.type_filter & (~type)) & LMS_ALL_SCAN;
+    return MediaPlayerManage.type_filter;
 }
