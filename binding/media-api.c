@@ -245,7 +245,7 @@ static void media_results_get (afb_req_t request)
     }
 
     jresp = new_json_object_from_device(list);
-    g_list_free(list);
+    g_list_free_full(list,free_media_item);
     ListUnlock();
 
     if (jresp == NULL) {

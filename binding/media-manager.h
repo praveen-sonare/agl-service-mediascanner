@@ -111,6 +111,7 @@ typedef struct {
     gint  type_filter;
     GMutex m;
     Scanner1 *lms_proxy;
+    GFileMonitor *mon;
 } stMediaPlayerManage;
 
 typedef struct tagBinding_RegisterCallback
@@ -120,6 +121,7 @@ typedef struct tagBinding_RegisterCallback
 } Binding_RegisterCallback_t;
 
 /* ------ PUBLIC PLUGIN FUNCTIONS --------- */
+void free_media_item(void *data);
 void BindingAPIRegister(const Binding_RegisterCallback_t* pstRegisterCallback);
 int MediaPlayerManagerInit(void);
 
