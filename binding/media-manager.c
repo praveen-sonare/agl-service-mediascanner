@@ -37,9 +37,14 @@ const char *lms_scan_types[] = {
     "audio",
     "video",
 };
+typedef struct {
+    sqlite3 *db;
+    gboolean is_open;
+}scannerDB;
 
 static Binding_RegisterCallback_t g_RegisterCallback = { 0 };
 static stMediaPlayerManage MediaPlayerManage = { 0 };
+static scannerDB scanDB = { 0 };
 
 /* ------ LOCAL  FUNCTIONS --------- */
 void ListLock() {
@@ -98,12 +103,17 @@ GList* media_lightmediascanner_scan(GList *list, gchar *uri, int scan_type)
     gchar *query;
     int ret = 0;
 
-    db_path = scanner1_get_data_base_path(MediaPlayerManage.lms_proxy);
+    if(!scanDB.is_open) {
+        db_path = scanner1_get_data_base_path(MediaPlayerManage.lms_proxy);
 
-    ret = sqlite3_open(db_path, &conn);
-    if (ret) {
-        LOGE("Cannot open SQLITE database: '%s'\n", db_path);
-        return NULL;
+        ret = sqlite3_open(db_path, &scanDB.db);
+        if (ret != SQLITE_OK) {
+            LOGE("Cannot open SQLITE database: '%s'\n", db_path);
+            scanDB.is_open = FALSE;
+            g_list_free_full(list,free_media_item);
+            return NULL;
+        }
+        scanDB.is_open = TRUE;
     }
 
     switch (scan_type) {
@@ -120,7 +130,7 @@ GList* media_lightmediascanner_scan(GList *list, gchar *uri, int scan_type)
         return NULL;
     }
 
-    ret = sqlite3_prepare_v2(conn, query, (int) strlen(query), &res, &tail);
+    ret = sqlite3_prepare_v2(scanDB.db, query, (int) strlen(query), &res, &tail);
     if (ret) {
         LOGE("Cannot execute query '%s'\n", query);
         g_free(query);
@@ -137,6 +147,7 @@ GList* media_lightmediascanner_scan(GList *list, gchar *uri, int scan_type)
         if (ret)
             continue;
 
+        //We may check the allocation result ... but It may be a bit expensive in such a loop
         item = g_malloc0(sizeof(*item));
         tmp = g_uri_escape_string(path, "/", TRUE);
         item->path = g_strdup_printf("file://%s", tmp);
@@ -156,7 +167,7 @@ GList* media_lightmediascanner_scan(GList *list, gchar *uri, int scan_type)
     return list;
 }
 
-static void free_media_item(void *data)
+void free_media_item(void *data)
 {
     struct Media_Item *item = data;
 
@@ -174,30 +185,33 @@ on_interface_proxy_properties_changed (GDBusProxy *proxy,
                                     const gchar* const  *invalidated_properties)
 {
     GVariantIter iter;
-    const gchar *key;
-    GVariant *subValue;
-    const gchar *pInterface;
+    gchar *key = NULL;
+    GVariant *subValue = NULL;
+    gchar *pInterface = NULL;
     GList *list = NULL;
-
+    gboolean br = FALSE;
     pInterface = g_dbus_proxy_get_interface_name (proxy);
 
     if (0 != g_strcmp0(pInterface, LIGHTMEDIASCANNER_INTERFACE))
         return;
 
     g_variant_iter_init (&iter, changed_properties);
-    while (g_variant_iter_next (&iter, "{&sv}", &key, &subValue))
+    while (g_variant_iter_loop(&iter, "{&sv}", &key, &subValue))
     {
         gboolean val;
         if (0 == g_strcmp0(key,"IsScanning")) {
             g_variant_get(subValue, "b", &val);
             if (val == TRUE)
-                return;
+                br = TRUE;
         } else if (0 == g_strcmp0(key, "WriteLocked")) {
             g_variant_get(subValue, "b", &val);
             if (val == TRUE)
-                return;
+                br = TRUE;
         }
     }
+
+    if(br)
+        return;
 
     ListLock();
 
@@ -258,12 +272,28 @@ unmount_cb (GFileMonitor      *mon,
 {
     gchar *path = g_file_get_path(file);
     gchar *uri = g_strconcat("file://", path, NULL);
+    gint ret = 0;
 
     ListLock();
 
     if (g_RegisterCallback.binding_device_removed &&
         event == G_FILE_MONITOR_EVENT_DELETED) {
+
         g_RegisterCallback.binding_device_removed(uri);
+        ret = sqlite3_close(scanDB.db);
+        /* TODO: Release SQLite connection handle resources on the end of each session
+        *
+        * we should be able to handle the SQLITE_BUSY return value safely
+        * and be sure the connection handle will be released finally at the end of session
+        * There are a few synchronous & asynchronous libsqlite methods
+        * to handle this situation properly.
+        */
+        if(ret == SQLITE_OK) {
+            scanDB.db = NULL;
+            scanDB.is_open = FALSE;
+        } else {
+            LOGE("Failed to release SQLite connection handle.\n");
+        }
         g_free(path);
     } else if (event == G_FILE_MONITOR_EVENT_CREATED) {
         MediaPlayerManage.uri_filter = path;
@@ -283,16 +313,22 @@ unmount_cb (GFileMonitor      *mon,
  */
 int MediaPlayerManagerInit() {
     pthread_t thread_id;
-    GFile *file;
-    GFileMonitor *mon;
+    GFile *file = NULL;
+    GFileMonitor *mon = MediaPlayerManage.mon;
     int ret;
 
     g_mutex_init(&(MediaPlayerManage.m));
+    scanDB.is_open = FALSE;
+    if(mon != NULL) {
+        g_object_unref(mon);
+        mon = NULL;
+    }
 
     file = g_file_new_for_path("/media");
     g_assert(file != NULL);
 
     mon = g_file_monitor (file, G_FILE_MONITOR_NONE, NULL, NULL);
+    g_object_unref(file);
     g_assert(mon != NULL);
     g_signal_connect (mon, "changed", G_CALLBACK(unmount_cb), NULL);
 
