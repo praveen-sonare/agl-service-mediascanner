@@ -48,6 +48,7 @@ static stMediaPlayerManage MediaPlayerManage = { 0 };
 static scannerDB scanDB = { 0 };
 
 /* ------ LOCAL  FUNCTIONS --------- */
+
 void ListLock() {
     g_mutex_lock(&(MediaPlayerManage.m));
 }
@@ -95,88 +96,9 @@ void DebugTraceSendMsg(int level, gchar* message)
 
 }
 
-GList* media_lightmediascanner_scan(GList *list, gchar *uri, int scan_type)
+static void media_item_free(gpointer data)
 {
-    sqlite3 *conn;
-    sqlite3_stmt *res;
-    const char *tail;
-    const gchar *db_path;
-    gchar *query;
-    gchar *media_type;
-    int ret = 0;
-
-    if(!scanDB.is_open) {
-        db_path = scanner1_get_data_base_path(MediaPlayerManage.lms_proxy);
-
-        ret = sqlite3_open(db_path, &scanDB.db);
-        if (ret != SQLITE_OK) {
-            LOGE("Cannot open SQLITE database: '%s'\n", db_path);
-            scanDB.is_open = FALSE;
-            g_list_free_full(list,free_media_item);
-            return NULL;
-        }
-        scanDB.is_open = TRUE;
-    }
-
-    switch (scan_type) {
-        case LMS_VIDEO_SCAN:
-            query = g_strdup_printf(VIDEO_SQL_QUERY, uri ? uri : "");
-            media_type = lms_scan_types[LMS_VIDEO_ID];
-            break;
-        case LMS_IMAGE_SCAN:
-            query = g_strdup_printf(IMAGE_SQL_QUERY, uri ? uri : "");
-            media_type = lms_scan_types[LMS_IMAGE_ID];
-            break;
-        case LMS_AUDIO_SCAN:
-        default:
-            query = g_strdup_printf(AUDIO_SQL_QUERY, uri ? uri : "");
-            media_type = lms_scan_types[LMS_AUDIO_ID];
-    }
-
-    if (!query) {
-        LOGE("Cannot allocate memory for query\n");
-        return NULL;
-    }
-
-    ret = sqlite3_prepare_v2(scanDB.db, query, (int) strlen(query), &res, &tail);
-    if (ret) {
-        LOGE("Cannot execute query '%s'\n", query);
-        g_free(query);
-        return NULL;
-    }
-
-    while (sqlite3_step(res) == SQLITE_ROW) {
-        struct stat buf;
-        struct Media_Item *item;
-        const char *path = (const char *) sqlite3_column_text(res, 0);
-        gchar *tmp;
-
-        ret = stat(path, &buf);
-        if (ret)
-            continue;
-
-        //We may check the allocation result ... but It may be a bit expensive in such a loop
-        item = g_malloc0(sizeof(*item));
-        tmp = g_uri_escape_string(path, "/", TRUE);
-        item->path = g_strdup_printf("file://%s", tmp);
-        g_free(tmp);
-
-        item->type = media_type;
-        item->metadata.title = g_strdup((gchar *) sqlite3_column_text(res, 1));
-        item->metadata.artist = g_strdup((gchar *) sqlite3_column_text(res, 2));
-        item->metadata.album = g_strdup((gchar *) sqlite3_column_text(res, 3));
-        item->metadata.genre = g_strdup((gchar *) sqlite3_column_text(res, 4));
-        item->metadata.duration = sqlite3_column_int(res, 5) * 1000;
-        list = g_list_append(list, item);
-    }
-    g_free(query);
-
-    return list;
-}
-
-void free_media_item(void *data)
-{
-    struct Media_Item *item = data;
+    MediaItem_t *item = data;
 
 	g_free(item->metadata.title);
 	g_free(item->metadata.artist);
@@ -186,20 +108,112 @@ void free_media_item(void *data)
 	g_free(item);
 }
 
+gint media_lightmediascanner_scan(MediaList_t *mlist, gchar* uri, gchar **error)
+{
+    sqlite3_stmt *res;
+    const char *tail;
+    const gchar *db_path;
+    gchar *query;
+    int ret = 0;
+    gint num = 0;
+
+    if(!scanDB.is_open) {
+        db_path = scanner1_get_data_base_path(MediaPlayerManage.lms_proxy);
+
+        ret = sqlite3_open(db_path, &scanDB.db);
+        if (ret != SQLITE_OK) {
+            LOGD("Cannot open SQLITE database: '%s'\n", db_path);
+            scanDB.is_open = FALSE;
+            g_list_free_full(mlist,media_item_free);
+            return -1;
+        }
+        scanDB.is_open = TRUE;
+    }
+
+    switch (mlist->scan_type_id) {
+        case LMS_VIDEO_ID:
+            query = g_strdup_printf(VIDEO_SQL_QUERY, uri ? uri : "");
+            break;
+        case LMS_IMAGE_ID:
+            query = g_strdup_printf(IMAGE_SQL_QUERY, uri ? uri : "");
+            break;
+        case LMS_AUDIO_ID:
+        default:
+            query = g_strdup_printf(AUDIO_SQL_QUERY, uri ? uri : "");
+    }
+
+    if (!query) {
+        *error = g_strdup_printf("Cannot allocate memory for query");
+        return -1;
+    }
+
+    ret = sqlite3_prepare_v2(scanDB.db, query, (int) strlen(query), &res, &tail);
+    if (ret) {
+        *error = g_strdup("Cannot execute query");
+        g_free(query);
+        return -1;
+    }
+
+    while (sqlite3_step(res) == SQLITE_ROW) {
+        struct stat buf;
+        MediaItem_t *item = NULL;
+        const char *path = (const char *) sqlite3_column_text(res, 0);
+        gchar *tmp;
+
+        ret = stat(path, &buf);
+        if (ret)
+            continue;
+
+        //We may check the allocation result ... but It maybe a bit expensive in such a loop
+        item = g_malloc0(sizeof(*item));
+
+        tmp = g_uri_escape_string(path, "/", TRUE);
+        item->path = g_strdup_printf("file://%s", tmp);
+        g_free(tmp);
+
+        item->metadata.title = g_strdup((gchar *) sqlite3_column_text(res, 1));
+        item->metadata.artist = g_strdup((gchar *) sqlite3_column_text(res, 2));
+        item->metadata.album = g_strdup((gchar *) sqlite3_column_text(res, 3));
+        item->metadata.genre = g_strdup((gchar *) sqlite3_column_text(res, 4));
+        item->metadata.duration = sqlite3_column_int(res, 5) * 1000;
+        mlist->list = g_list_append(mlist->list, item);
+        num++;
+    }
+    g_free(query);
+
+    return num;
+}
+
+void media_device_free(MediaDevice_t *mdev)
+{
+    gint i;
+
+    if(mdev){
+        for(i = LMS_MIN_ID; i < LMS_SCAN_COUNT; ++i)
+        {
+            if(mdev->lists[i] != NULL) {
+                g_list_free_full(mdev->lists[i]->list,media_item_free);
+                g_free(mdev->lists[i]);
+            }
+        }
+        g_free(mdev->filters->scan_uri);
+        mdev->filters->scan_uri = NULL;
+        g_free(mdev);
+    }
+}
+
 static void
 on_interface_proxy_properties_changed (GDBusProxy *proxy,
                                     GVariant *changed_properties,
                                     const gchar* const  *invalidated_properties)
 {
-    if(!(MediaPlayerManage.type_filter & LMS_ALL_SCAN))
-        return;
-
     GVariantIter iter;
     gchar *key = NULL;
     GVariant *subValue = NULL;
-    gchar *pInterface = NULL;
-    GList *list = NULL;
+    const gchar *pInterface;
+    ScanFilter_t *filter = &MediaPlayerManage.filters;
     gboolean br = FALSE;
+
     pInterface = g_dbus_proxy_get_interface_name (proxy);
 
     if (0 != g_strcmp0(pInterface, LIGHTMEDIASCANNER_INTERFACE))
@@ -219,33 +233,20 @@ on_interface_proxy_properties_changed (GDBusProxy *proxy,
                 br = TRUE;
         }
     }
-
     if(br)
         return;
 
-    ListLock();
-    if(MediaPlayerManage.type_filter & LMS_AUDIO_SCAN)
-        list = media_lightmediascanner_scan(list, MediaPlayerManage.uri_filter, LMS_AUDIO_SCAN);
-    if(MediaPlayerManage.type_filter & LMS_VIDEO_SCAN)
-        list = media_lightmediascanner_scan(list, MediaPlayerManage.uri_filter, LMS_VIDEO_SCAN);
-    if(MediaPlayerManage.type_filter & LMS_IMAGE_SCAN)
-        list = media_lightmediascanner_scan(list, MediaPlayerManage.uri_filter, LMS_IMAGE_SCAN);
-
-    g_free(MediaPlayerManage.uri_filter);
-    MediaPlayerManage.uri_filter = NULL;
-
-    if (list != NULL && g_RegisterCallback.binding_device_added)
-        g_RegisterCallback.binding_device_added(list);
-
-    g_list_free_full(list, free_media_item);
-
-    ListUnlock();
+    if (filter->scan_types &&
+        filter->scan_uri &&
+        g_RegisterCallback.binding_device_added)
+        g_RegisterCallback.binding_device_added(filter);
 }
 
 static int MediaPlayerDBusInit(void)
 {
     GError *error = NULL;
 
+    MediaPlayerManage.lms_proxy = NULL;
     MediaPlayerManage.lms_proxy = scanner1_proxy_new_for_bus_sync(
         G_BUS_TYPE_SYSTEM, G_DBUS_PROXY_FLAGS_NONE, LIGHTMEDIASCANNER_SERVICE,
         LIGHTMEDIASCANNER_PATH, NULL, &error);
@@ -288,7 +289,6 @@ unmount_cb (GFileMonitor      *mon,
     gint ret = 0;
 
     ListLock();
-
     if (g_RegisterCallback.binding_device_removed &&
         event == G_FILE_MONITOR_EVENT_DELETED) {
 
@@ -309,7 +309,7 @@ unmount_cb (GFileMonitor      *mon,
         }
         g_free(path);
     } else if (event == G_FILE_MONITOR_EVENT_CREATED) {
-        MediaPlayerManage.uri_filter = path;
+        MediaPlayerManage.filters.scan_uri = path;
     } else {
         g_free(path);
     }
@@ -348,7 +348,6 @@ int MediaPlayerManagerInit() {
     ret = MediaPlayerDBusInit();
     if (ret == 0)
         pthread_create(&thread_id, NULL, media_event_loop_thread, NULL);
-
     return ret;
 }
 
@@ -373,13 +372,62 @@ void BindingAPIRegister(const Binding_RegisterCallback_t* pstRegisterCallback)
     }
 }
 
+void setAPIMediaListView(gint view) {
+    MediaPlayerManage.filters.listview_type = view;
+}
+
 gint ScanTypeAppend(gint type)
 {
-    return MediaPlayerManage.type_filter |= (type & LMS_ALL_SCAN);
+    return MediaPlayerManage.filters.scan_types |= (type & LMS_ALL_SCAN);
 }
 
 gint ScanTypeRemove(gint type)
 {
-    MediaPlayerManage.type_filter = (MediaPlayerManage.type_filter & (~type)) & LMS_ALL_SCAN;
-    return MediaPlayerManage.type_filter;
+    MediaPlayerManage.filters.scan_types =
+        ( MediaPlayerManage.filters.scan_types & (~type)) & LMS_ALL_SCAN;
+    return MediaPlayerManage.filters.scan_types;
+}
+
+gint media_lists_get(MediaDevice_t* mdev, gchar **error)
+{
+    MediaList_t *mlist = NULL;
+    ScanFilter_t *filters = NULL;
+    gint ret = -1;
+    gint scaned_media = 0;
+    gint i = 0;
+
+    if(!mdev)
+    {
+        *error = g_strdup("'MediaDevice' object is NULL!");
+        return -1;
+    }
+    filters = mdev->filters;
+
+    for( i = LMS_MIN_ID; i < LMS_SCAN_COUNT; ++i)
+    {
+        if(filters->scan_types & (1 << i))
+        {
+            mlist = mdev->lists[i];
+            mlist->scan_type_str = lms_scan_types[i];
+            mlist->scan_type_id = i;
+
+            ret = media_lightmediascanner_scan(mlist,filters->scan_uri,error);
+            if(ret < 0){
+                return ret;
+            } else if(ret == 0){
+                free(mdev->lists[i]);
+                mdev->lists[i] = NULL;
+            } else {
+                scaned_media += ret;
+            }
+        }
+    }
+
+    if(scaned_media == 0)
+    {
+        *error = g_strdup("No media found!");
+        return -1;
+    }
+    LOGD("\n\tscanned media: %d\n",scaned_media);
+    return scaned_media;
 }

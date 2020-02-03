@@ -31,7 +31,7 @@ static afb_event_t media_removed_event;
 
 static gint get_scan_type(afb_req_t request, json_object *jtype) {
     gint ret = 0;
-    const *stype = NULL;
+    const char *stype = NULL;
     if(!json_object_is_type(jtype,json_type_string)) {
         afb_req_fail(request,"failed", "invalid scan-type type");
         return ret;
@@ -64,9 +64,9 @@ static gint get_scan_types(afb_req_t request) {
 
     if(!json_object_object_get_ex(afb_req_json(request),"types",&jtypes)) {
         /*
-         * Considering 'audio' & 'video' scan types as default
-         * if the user doesn't provide 'types' property,
-         * for sake of compability with previeus versions
+         * Considered 'audio' & 'video' scan types as default types,
+         * if the user doesn't provide 'types' property.
+         * (for sake of backward compatibility)
          */
         ret = (LMS_AUDIO_SCAN | LMS_VIDEO_SCAN);
         return ret;
@@ -83,18 +83,46 @@ static gint get_scan_types(afb_req_t request) {
 
         for(i=0; i<len; ++i){
             gint t = get_scan_type(request, json_object_array_get_idx(jtypes,i));
-            if(t != 0) { ret |= t; } else { return -1;}
+            if(t != 0) { ret |= t; } else { return -1; }
         }
         return ret;
     } else if(json_object_is_type(jtypes,json_type_string)) {
         gint t = get_scan_type(request,jtypes);
-        if(t != 0) {return t;} else {return -1;}
+        if(t != 0) { return t; } else { return -1; }
     } else {
         afb_req_fail(request, "failed", "invalid scan-types format");
         return -1;
     }
 }
 
+static int get_scan_view(afb_req_t request) {
+    json_object *jview = NULL;
+    const char* sview = NULL;
+
+    if(!afb_req_is_valid(request)) {
+        afb_req_fail(request, "failed", "invalid request");
+        return -1;
+    }
+
+    if(!json_object_object_get_ex(afb_req_json(request),"view",&jview)){
+        return MEDIA_LIST_VIEW_DEFAULT;
+    }
+
+    if(!json_object_is_type(jview,json_type_string)) {
+        afb_req_fail(request,"failed", "invalid media-list-view value");
+        return -1;
+    }
+    sview = json_object_get_string(jview);
+
+    if(!strcasecmp(sview,"clustered")) {
+        return MEDIA_LIST_VIEW_CLUSTERD;
+    } else if(!strcasecmp(sview,"default")){
+        return MEDIA_LIST_VIEW_DEFAULT;
+    } else {
+        afb_req_fail(request,"failed","Unknown media-list-view type");
+        return -1;
+    }
+}
 /*
  * @brief Subscribe for an event
  *
@@ -103,25 +131,30 @@ static gint get_scan_types(afb_req_t request) {
  */
 static void subscribe(afb_req_t request)
 {
-	const char *value = afb_req_value(request, "value");
-    gint scantype = 0;
+    const char *value = afb_req_value(request, "value");
 
-	if(value) {
-		if(!strcasecmp(value, "media_added")) {
-			afb_req_subscribe(request, media_added_event);
-		} else if(!strcasecmp(value, "media_removed")) {
-			afb_req_subscribe(request, media_removed_event);
-		} else {
-			afb_req_fail(request, "failed", "Invalid event");
-			return;
-		}
-	}
+    if(value) {
+        if(!strcasecmp(value, "media_added")) {
+            gint scan_type = 0;
+            gint view_type = 0;
 
-    //Get scan types & append them to scan config
-    scantype = get_scan_types(request);
-    if(scantype < 0) return;
-
-    ScanTypeAppend(scantype);
+            afb_req_subscribe(request, media_added_event);
+            //Get scan types & append them to mediascan config
+            scan_type = get_scan_types(request);
+            if(scan_type < 0)
+            return;
+            ScanTypeAppend(scan_type);
+            view_type = get_scan_view(request);
+            if(view_type < 1)
+            return;
+            setAPIMediaListView(view_type);
+        } else if(!strcasecmp(value, "media_removed")) {
+            afb_req_subscribe(request, media_removed_event);
+        } else {
+            afb_req_fail(request, "failed", "Invalid event");
+            return;
+        }
+    }
     afb_req_success(request, NULL, NULL);
 }
 
@@ -139,14 +172,15 @@ static void unsubscribe(afb_req_t request)
     if( json_object_object_get_ex(jrequest,"value",NULL) &&
         json_object_object_get_ex(jrequest,"types",NULL) ) {
         //If 'types' is provided, We just remove the specified types.
-        gint scantype = get_scan_types(request);
-        if(scantype < 0) return;
+        gint scan_type = get_scan_types(request);
+        if(scan_type < 0)
+            return;
 
         /*
-         * If any scan type remained, we escape unsubscribe the event
+         * If any scan type remained, we escape unsubscribing the event
          * otherwise continue to unsubscribe the event
          */
-        if(ScanTypeRemove(scantype)) {
+        if(ScanTypeRemove(scan_type)) {
             afb_req_success(request, NULL, NULL);
             return;
         }
@@ -166,23 +200,26 @@ static void unsubscribe(afb_req_t request)
 	afb_req_success(request, NULL, NULL);
 }
 
-static json_object *new_json_object_from_device(GList *list)
+static gint
+media_jlist_from_media_list(MediaList_t *mlist, const gint view, json_object *jarray)
 {
-    json_object *jarray = json_object_new_array();
-    json_object *jresp = json_object_new_object();
     json_object *jstring = NULL;
     GList *l;
+    gint num = 0;
+    const GList *list = mlist->list;
+    const char *scan_type = mlist->scan_type_str;
 
     for (l = list; l; l = l->next)
     {
-        struct Media_Item *item = l->data;
+        MediaItem_t *item = l->data;
         json_object *jdict = json_object_new_object();
 
         jstring = json_object_new_string(item->path);
         json_object_object_add(jdict, "path", jstring);
-
-        jstring = json_object_new_string(item->type);
-        json_object_object_add(jdict, "type", jstring);
+        if(view == MEDIA_LIST_VIEW_DEFAULT) {
+            jstring = json_object_new_string(scan_type);
+            json_object_object_add(jdict, "type", jstring);
+        }
 
         if (item->metadata.title) {
             jstring = json_object_new_string(item->metadata.title);
@@ -210,59 +247,153 @@ static json_object *new_json_object_from_device(GList *list)
         }
 
         json_object_array_add(jarray, jdict);
+        num++;
     }
 
     if (jstring == NULL)
+        return -1;
+
+    return num;
+}
+
+static json_object* media_device_scan(ScanFilter_t *filter, gchar **error)
+{
+    json_object *jresp = NULL;
+    json_object *jlist = NULL;
+    MediaList_t *mlist = NULL;
+    MediaDevice_t *mdev = NULL;
+    gint res = -1;
+    gint num = 0;
+    gint i;
+
+    if(!filter){
+        *error = g_strdup("NULL filter!");
+        return NULL;
+    }
+    if(!filter->scan_types)
         return NULL;
 
-    json_object_object_add(jresp, "Media", jarray);
+    mdev = g_malloc0(sizeof(*mdev));
+    if(!mdev){
+        *error = g_strdup("Cannot allocate memory.");
+        return NULL;
+    }
 
+    for( i = LMS_MIN_ID; i < LMS_SCAN_COUNT; ++i)
+    {
+        if(filter->scan_types & (1 << i))
+        {
+            mdev->lists[i] = g_malloc0(sizeof(MediaList_t));
+            if(!mdev->lists[i]){
+                media_device_free(mdev);
+                *error = g_strdup("Cannot allocate memory to media-list object");
+                return NULL;
+            }
+        }
+    }
+    mdev->filters = filter;
+
+    res = media_lists_get(mdev,error);
+    if(res < 0)
+    {
+        media_device_free(mdev);
+        return NULL;
+    }
+
+    if(filter->listview_type == MEDIA_LIST_VIEW_CLUSTERD)
+    {
+        jlist = json_object_new_object();
+        for(i = LMS_MIN_ID; i < LMS_SCAN_COUNT; ++i)
+        {
+            json_object *typed_arr = json_object_new_array();
+            mlist = mdev->lists[i];
+            if(mlist != NULL)
+            {
+                res = media_jlist_from_media_list(mlist,MEDIA_LIST_VIEW_CLUSTERD,typed_arr);
+                if(res < 0)
+                {
+                    *error = g_strdup("media parsing error");
+                    media_device_free(mdev);
+                    json_object_put(jlist);
+                    return NULL;
+                }
+                json_object_object_add(jlist,lms_scan_types[i],typed_arr);
+                num += res;
+            }
+        }
+    }
+    else
+    {
+        jlist = json_object_new_array();
+        for(i = LMS_MIN_ID; i < LMS_SCAN_COUNT; ++i)
+        {
+            mlist = mdev->lists[i];
+            if(mlist != NULL)
+            {
+                res = media_jlist_from_media_list(mlist,MEDIA_LIST_VIEW_DEFAULT,jlist);
+                if(res < 0)
+                {
+                    *error = g_strdup("media parsing error");
+                    media_device_free(mdev);
+                    json_object_put(jlist);
+                    return NULL;
+                }
+                num += res;
+            }
+        }
+    }
+    media_device_free(mdev);
+
+    jresp = json_object_new_object();
+    json_object_object_add(jresp, "Media", jlist);
     return jresp;
 }
 
 static void media_results_get (afb_req_t request)
 {
-    GList *list = NULL;
     json_object *jresp = NULL;
-    gint scan_type = 0;
+    gchar *error = NULL;
+    gint scan_types = 0;
+    ScanFilter_t filter;
 
-    scan_type = get_scan_types(request);
-    if(scan_type < 0) return;
+    filter.scan_types = get_scan_types(request);
+    if(filter.scan_types < 0)
+        return;
+    filter.listview_type = get_scan_view(request);
+    filter.scan_uri = SCAN_URI_DEFAULT;
 
     ListLock();
-
-    if(scan_type & LMS_AUDIO_SCAN)
-        list = media_lightmediascanner_scan(list, NULL, LMS_AUDIO_SCAN);
-    if(scan_type & LMS_VIDEO_SCAN)
-        list = media_lightmediascanner_scan(list, NULL, LMS_VIDEO_SCAN);
-    if(scan_type & LMS_IMAGE_SCAN)
-        list = media_lightmediascanner_scan(list, NULL, LMS_IMAGE_SCAN);
-
-    if (list == NULL) {
-        afb_req_fail(request, "failed", "media scan error");
-        ListUnlock();
-        return;
-    }
-
-    jresp = new_json_object_from_device(list);
-    g_list_free_full(list,free_media_item);
+    jresp = media_device_scan(&filter,&error);
     ListUnlock();
 
-    if (jresp == NULL) {
-        afb_req_fail(request, "failed", "media parsing error");
+    if (jresp == NULL)
+    {
+        afb_req_fail(request, "failed", error);
+        LOGE(" %s",error);
+        g_free(error);
         return;
     }
 
     afb_req_success(request, jresp, "Media Results Displayed");
 }
 
-static void media_broadcast_device_added (GList *list)
+static void media_broadcast_device_added (ScanFilter_t *filters)
 {
-    json_object *jresp = new_json_object_from_device(list);
+    json_object *jresp = NULL;
+    gchar *error = NULL;
 
-    if (jresp != NULL) {
-        afb_event_push(media_added_event, jresp);
+    ListLock();
+    jresp = media_device_scan(filters,&error);
+    ListUnlock();
+
+    if (jresp == NULL)
+    {
+        LOGE("ERROR:%s\n",error);
+        g_free(error);
+        return;
     }
+
+    afb_event_push(media_added_event, jresp);
 }
 
 static void media_broadcast_device_removed (const char *obj_path)

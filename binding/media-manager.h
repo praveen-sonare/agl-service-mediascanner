@@ -105,52 +105,16 @@ void DebugTraceSendMsg(int level, gchar* message);
                 "ORDER BY " \
                 "images.title"
 
-typedef struct {
-    GList *list;
-    gchar *uri_filter;
-    gint  type_filter;
-    GMutex m;
-    Scanner1 *lms_proxy;
-    GFileMonitor *mon;
-} stMediaPlayerManage;
-
-typedef struct tagBinding_RegisterCallback
-{
-    void (*binding_device_added)(GList *list);
-    void (*binding_device_removed)(const char *obj_path);
-} Binding_RegisterCallback_t;
-
-/* ------ PUBLIC PLUGIN FUNCTIONS --------- */
-void free_media_item(void *data);
-void BindingAPIRegister(const Binding_RegisterCallback_t* pstRegisterCallback);
-int MediaPlayerManagerInit(void);
-
-gint ScanTypeAppend(gint);
-gint ScanTypeRemove(gint);
-
-void ListLock();
-void ListUnlock();
-
-GList* media_lightmediascanner_scan(GList *list, gchar *uri, int scan_type);
-
-struct Media_Item {
-    gchar *path;
-    gchar *type;
-    struct {
-        gchar *title;
-        gchar *artist;
-        gchar *album;
-        gchar *genre;
-        gint  duration;
-    } metadata;
-};
-
 enum {
-    LMS_AUDIO_ID,
+    LMS_MIN_ID = 0,
+    LMS_AUDIO_ID = 0,
     LMS_VIDEO_ID,
     LMS_IMAGE_ID,
     LMS_SCAN_COUNT
 };
+
+#define MEDIA_LIST_VIEW_DEFAULT  1u
+#define MEDIA_LIST_VIEW_CLUSTERD 2u
 
 #define LMS_AUDIO_SCAN (1 << LMS_AUDIO_ID)
 #define LMS_VIDEO_SCAN (1 << LMS_VIDEO_ID)
@@ -164,5 +128,63 @@ enum {
 #define MEDIA_ALL   "all"
 
 extern const char *lms_scan_types[LMS_SCAN_COUNT];
+
+#define SCAN_URI_DEFAULT NULL
+
+typedef struct {
+    gint listview_type;
+    gint scan_types;
+    gchar *scan_uri;
+}ScanFilter_t;
+
+typedef struct {
+    ScanFilter_t filters;
+    GMutex m;
+    GFileMonitor *mon;
+    Scanner1 *lms_proxy;
+} stMediaPlayerManage;
+
+
+typedef struct {
+    gchar *path;
+    struct {
+        gchar *title;
+        gchar *artist;
+        gchar *album;
+        gchar *genre;
+        gint  duration;
+    } metadata;
+}MediaItem_t;
+
+typedef struct {
+    GList *list;
+    gchar* scan_type_str;
+    gint scan_type_id;
+} MediaList_t;
+
+typedef struct {
+    MediaList_t *lists[LMS_SCAN_COUNT];
+    ScanFilter_t *filters;
+} MediaDevice_t;
+
+typedef struct tagBinding_RegisterCallback
+{
+    void (*binding_device_added)(ScanFilter_t *filters);
+    void (*binding_device_removed)(const char *obj_path);
+} Binding_RegisterCallback_t;
+
+/* ------ PUBLIC PLUGIN FUNCTIONS --------- */
+void BindingAPIRegister(const Binding_RegisterCallback_t* pstRegisterCallback);
+int MediaPlayerManagerInit(void);
+
+gint ScanTypeAppend(gint);
+gint ScanTypeRemove(gint);
+void setAPIMediaListView(gint view);
+
+void ListLock();
+void ListUnlock();
+
+gint media_lists_get(MediaDevice_t* mdev, gchar **error);
+void media_device_free(MediaDevice_t *mdev);
 
 #endif
