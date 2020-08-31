@@ -28,6 +28,8 @@ with the following fields.
 | genre       | genre type for media entry                  |
 | type        | media entry data type *(e.g audio, video)*  |
 
+If no media is present, the an empty array will be returned.
+
 ## Events
 
 | Name           | Description                                        |

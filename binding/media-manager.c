@@ -393,7 +393,7 @@ gint media_lists_get(MediaDevice_t* mdev, gchar **error)
     MediaList_t *mlist = NULL;
     ScanFilter_t *filters = NULL;
     gint ret = -1;
-    gint scaned_media = 0;
+    gint scanned_media = 0;
     gint i = 0;
 
     if(!mdev)
@@ -418,16 +418,11 @@ gint media_lists_get(MediaDevice_t* mdev, gchar **error)
                 free(mdev->lists[i]);
                 mdev->lists[i] = NULL;
             } else {
-                scaned_media += ret;
+                scanned_media += ret;
             }
         }
     }
 
-    if(scaned_media == 0)
-    {
-        *error = g_strdup("No media found!");
-        return -1;
-    }
-    LOGD("\n\tscanned media: %d\n",scaned_media);
-    return scaned_media;
+    LOGD("\n\tscanned media: %d\n",scanned_media);
+    return scanned_media;
 }
